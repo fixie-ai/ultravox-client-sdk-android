@@ -16,38 +16,10 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0e7e9986-8331-4ae5-8c43-d2b86550bb12" name="Changes" comment="initial impl">
-      <change afterPath="$PROJECT_DIR$/demoapp/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/proguard-rules.pro" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/AndroidManifest.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/java/ai/ultravox/demoapp/MainActivity.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/drawable/ic_launcher_background.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/drawable/ic_launcher_foreground.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/layout/activity_main.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-hdpi/ic_launcher.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-hdpi/ic_launcher_round.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-mdpi/ic_launcher.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-mdpi/ic_launcher_round.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xhdpi/ic_launcher.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xxhdpi/ic_launcher.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/values-night/themes.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/values/colors.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/values/strings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/demoapp/src/main/res/values/themes.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+    <list default="true" id="0e7e9986-8331-4ae5-8c43-d2b86550bb12" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/runConfigurations/publishToMaven.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/libs.versions.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ultravox_client/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/ultravox_client/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ultravox_client/src/main/java/ai/ultravox/UltravoxSession.kt" beforeDir="false" afterPath="$PROJECT_DIR$/ultravox_client/src/main/java/ai/ultravox/UltravoxSession.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -92,6 +64,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Android App.demoapp.executor": "Run",
+    "Gradle.publishToMaven.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
@@ -101,10 +74,10 @@
     "dart.analysis.tool.window.visible": "false",
     "git-widget-placeholder": "mike/demo-app",
     "kotlin-language-version-configured": "true",
-    "project.structure.last.edited": "Dependencies",
+    "project.structure.last.edited": "Suggestions",
     "project.structure.proportion": "0.17",
     "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "AndroidSdkUpdater",
+    "settings.editor.selected.configurable": "reference.settings.ide.settings.notifications",
     "show.migrate.to.gradle.popup": "false"
   },
   "keyToStringList": {
@@ -113,6 +86,11 @@
     ]
   }
 }]]></component>
+  <component name="PsdUISettings">
+    <option name="MODULE_TAB" value="Signing Configs" />
+    <option name="LAST_EDITED_SIGNING_CONFIG" value="debug" />
+    <option name="LAST_EDITED_BUILD_TYPE" value="release" />
+  </component>
   <component name="RunManager" selected="Android App.demoapp">
     <configuration name="app" type="AndroidRunConfigurationType" factoryName="Android App">
       <module name="Ultravox_Client.app.main" />
@@ -259,6 +237,11 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <list>
+      <item itemvalue="Android App.app" />
+      <item itemvalue="Android App.demoapp" />
+      <item itemvalue="Gradle.publishToMaven" />
+    </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -269,11 +252,21 @@
       <option name="presentableId" value="Default" />
       <updated>1724693447295</updated>
     </task>
+    <task id="LOCAL-00001" summary="Add demo app, fix crazy protocol expectation.">
+      <option name="closed" value="true" />
+      <created>1724773458718</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1724773458718</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="initial impl" />
-    <option name="LAST_COMMIT_MESSAGE" value="initial impl" />
+    <MESSAGE value="Add demo app, fix crazy protocol expectation." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add demo app, fix crazy protocol expectation." />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REFORMAT_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
