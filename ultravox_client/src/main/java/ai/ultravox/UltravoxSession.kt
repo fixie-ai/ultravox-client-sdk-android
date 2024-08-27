@@ -25,7 +25,14 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
             throw RuntimeException("Cannot join a new call while already in a call")
         }
         state.status = UltravoxSessionStatus.CONNECTING
-        val req = Request.Builder().url(joinUrl.toHttpUrl()).build()
+        val httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
+            // This is the expected case, but OkHttp expects http(s) protocol even
+            // for WebSocket requests for some reason.
+            joinUrl.replaceFirst("ws", "http")
+        } else {
+            joinUrl
+        }
+        val req = Request.Builder().url(httpUrl.toHttpUrl()).build()
         socket = client.newWebSocket(req, object: WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val message = JSONObject(text)
