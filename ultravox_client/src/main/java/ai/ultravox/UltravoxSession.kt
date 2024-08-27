@@ -73,7 +73,6 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
         if (!state.status.live) {
             throw RuntimeException("Cannot send text while not connected. Current status is " + state.status + ".")
         }
-        state.addOrUpdateTranscript(Transcript(text, true, Transcript.Role.USER, Transcript.Medium.TEXT))
         val message = JSONObject()
         message.put("type", "input_text_message")
         message.put("text", text)
@@ -102,7 +101,16 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
             }
             "transcript" -> {
                 val transcript = message["transcript"] as JSONObject
-                state.addOrUpdateTranscript(Transcript(transcript["text"] as String, transcript["final"] as Boolean, Transcript.Role.USER, Transcript.Medium.VOICE))
+                val medium =
+                    if (message.has("medium") && message["medium"] == "text") Transcript.Medium.TEXT else Transcript.Medium.VOICE
+                state.addOrUpdateTranscript(
+                    Transcript(
+                        transcript["text"] as String,
+                        transcript["final"] as Boolean,
+                        Transcript.Role.USER,
+                        medium
+                    )
+                )
             }
             "voice_synced_transcript", "agent_text_transcript" -> {
                 val medium = if (message["type"] == "agent_text_transcript") Transcript.Medium.TEXT else Transcript.Medium.VOICE
