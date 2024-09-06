@@ -2,7 +2,7 @@
 
 Android client SDK for [Ultravox](https://ultravox.ai).
 
-[![maven package](https://img.shields.io/maven-central/v/ai.fixie/ultravox-client-sdk?label=ultravox_client_sdk&color=orange)](https://central.sonatype.com/artifact/ai.fixie/ultravox-client-sdk)
+[![maven package](https://img.shields.io/maven-central/v/ai.fixie/ultravox-client-sdk?label=ultravox-client-sdk&color=orange)](https://central.sonatype.com/artifact/ai.fixie/ultravox-client-sdk)
 
 ## Usage
 
