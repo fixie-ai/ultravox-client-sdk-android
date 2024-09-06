@@ -19,3 +19,9 @@ gradle-app.setting
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# Android Studio irrelevant settings
+.idea/other.xml
+.idea/workspace.xml
+.idea/tasks.xml
+
