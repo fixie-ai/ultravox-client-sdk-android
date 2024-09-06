@@ -1,53 +1,67 @@
 package ai.ultravox
 
+import android.os.Build
 import android.util.Log
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import org.json.JSONObject
 
 
-typealias UltravoxSessionListener = (ImmutableList<Transcript>, UltravoxSessionStatus) -> Unit
+typealias UltravoxSessionListener = () -> Unit
 
-class UltravoxSessionState() {
-    private val transcripts = ArrayList<Transcript>()
-    internal val lastTranscript: Transcript?
-        get() = transcripts.lastOrNull()
+class UltravoxSessionState {
+    private val _transcripts = ArrayList<Transcript>()
+
+    @Suppress("unused")
+    val transcripts
+        get() = _transcripts.toImmutableList()
+    val lastTranscript: Transcript?
+        get() = _transcripts.lastOrNull()
 
     var status = UltravoxSessionStatus.DISCONNECTED
         internal set(value) {
             val prev = field
             field = value
             if (prev != value) {
-                fireListeners(statusChangeListeners.toImmutableList())
+                fireListeners("status")
             }
         }
 
-    private val transcriptChangeListeners = ArrayList<UltravoxSessionListener>()
-    private val statusChangeListeners = ArrayList<UltravoxSessionListener>()
+    var lastExperimentalMessage: JSONObject? = null
+        internal set(value) {
+            field = value
+            fireListeners("experimentalMessage")
+        }
+
+    private val listeners = HashMap<String, ArrayList<UltravoxSessionListener>>()
 
     @Suppress("unused")
-    fun listenForTranscriptChanges(listener: UltravoxSessionListener) {
-        transcriptChangeListeners.add(listener)
-    }
-
-    @Suppress("unused")
-    fun listenForStatusChanges(listener: UltravoxSessionListener) {
-        statusChangeListeners.add(listener)
+    fun listen(event: String, listener: UltravoxSessionListener) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            listeners.putIfAbsent(event, ArrayList())
+        } else {
+            if (!listeners.containsKey("event")) {
+                listeners[event] = ArrayList()
+            }
+        }
+        listeners[event]!!.add(listener)
     }
 
     internal fun addOrUpdateTranscript(transcript: Transcript) {
         val last = lastTranscript
         if (last != null && !last.isFinal && last.speaker == transcript.speaker) {
-            transcripts.removeLast()
+            _transcripts.removeLast()
         }
-        transcripts.add(transcript)
-        fireListeners(transcriptChangeListeners.toImmutableList())
+        _transcripts.add(transcript)
+        fireListeners("transcript")
     }
 
-    private fun fireListeners(listeners: ImmutableList<UltravoxSessionListener>) {
-        val transcripts = this.transcripts.toImmutableList()
-        for (listener in listeners) {
+    private fun fireListeners(event: String) {
+        if (!listeners.containsKey(event)) {
+            return
+        }
+        for (listener in listeners[event]!!) {
             try {
-                listener(transcripts, status)
+                listener()
             } catch (e: Exception) {
                 Log.w("UltravoxClient", "Listener error: ", e)
             }
