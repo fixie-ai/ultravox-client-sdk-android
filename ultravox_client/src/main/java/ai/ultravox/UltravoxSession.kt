@@ -15,7 +15,12 @@ import okhttp3.WebSocketListener
 import org.json.JSONObject
 
 @Suppress("unused")
-class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, private val client: OkHttpClient = OkHttpClient()) {
+class UltravoxSession(
+    ctx: Context,
+    private val coroScope: CoroutineScope,
+    private val client: OkHttpClient = OkHttpClient(),
+    private val experimentalMessages: Set<String> = HashSet(),
+) {
     private val state = UltravoxSessionState()
     private var socket: WebSocket? = null
     private var room: Room = LiveKit.create(ctx)
@@ -25,15 +30,20 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
             throw RuntimeException("Cannot join a new call while already in a call")
         }
         state.status = UltravoxSessionStatus.CONNECTING
-        val httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
+        var httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
             // This is the expected case, but OkHttp expects http(s) protocol even
             // for WebSocket requests for some reason.
-            joinUrl.replaceFirst("ws", "http")
+            joinUrl.replaceFirst("ws", "http").toHttpUrl()
         } else {
-            joinUrl
+            joinUrl.toHttpUrl()
         }
-        val req = Request.Builder().url(httpUrl.toHttpUrl()).build()
-        socket = client.newWebSocket(req, object: WebSocketListener() {
+        if (experimentalMessages.isNotEmpty()) {
+            httpUrl = httpUrl.newBuilder()
+                .addQueryParameter("experimentalMessages", experimentalMessages.joinToString(","))
+                .build()
+        }
+        val req = Request.Builder().url(httpUrl).build()
+        socket = client.newWebSocket(req, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val message = JSONObject(text)
                 if (message["type"] == "room_info") {
@@ -99,10 +109,11 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
                     "speaking" -> state.status = UltravoxSessionStatus.SPEAKING
                 }
             }
+
             "transcript" -> {
                 val transcript = message["transcript"] as JSONObject
                 val medium =
-                    if (message.has("medium") && message["medium"] == "text") Transcript.Medium.TEXT else Transcript.Medium.VOICE
+                    if (transcript.has("medium") && transcript["medium"] == "text") Transcript.Medium.TEXT else Transcript.Medium.VOICE
                 state.addOrUpdateTranscript(
                     Transcript(
                         transcript["text"] as String,
@@ -112,15 +123,37 @@ class UltravoxSession(ctx: Context, private val coroScope: CoroutineScope, priva
                     )
                 )
             }
+
             "voice_synced_transcript", "agent_text_transcript" -> {
-                val medium = if (message["type"] == "agent_text_transcript") Transcript.Medium.TEXT else Transcript.Medium.VOICE
+                val medium =
+                    if (message["type"] == "agent_text_transcript") Transcript.Medium.TEXT else Transcript.Medium.VOICE
                 if (message.has("text") && message["text"] != JSONObject.NULL) {
-                    state.addOrUpdateTranscript(Transcript(message["text"] as String, message["final"] as Boolean, Transcript.Role.AGENT, medium))
+                    state.addOrUpdateTranscript(
+                        Transcript(
+                            message["text"] as String,
+                            message["final"] as Boolean,
+                            Transcript.Role.AGENT,
+                            medium
+                        )
+                    )
                 } else if (message.has("delta") && message["delta"] != JSONObject.NULL) {
                     val last = state.lastTranscript
                     if (last != null && last.speaker == Transcript.Role.AGENT) {
-                        state.addOrUpdateTranscript(Transcript(last.text + message["delta"] as String, message["final"] as Boolean, Transcript.Role.AGENT, medium))
+                        state.addOrUpdateTranscript(
+                            Transcript(
+                                last.text + message["delta"] as String,
+                                message["final"] as Boolean,
+                                Transcript.Role.AGENT,
+                                medium
+                            )
+                        )
                     }
+                }
+            }
+
+            else -> {
+                if (experimentalMessages.isNotEmpty()) {
+                    state.lastExperimentalMessage = message
                 }
             }
         }

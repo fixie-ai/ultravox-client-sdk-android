@@ -65,9 +65,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun joinCall() {
         val sessionState = session.joinCall(joinText.text.toString())
-        sessionState.listenForTranscriptChanges { transcripts, _ ->
+        sessionState.listen("transcript") {
             run {
-                val last = transcripts.lastOrNull()
+                val last = sessionState.lastTranscript
                 if (last != null && last.isFinal) {
                     val prefix = if (last.speaker == Transcript.Role.USER) "USER: " else "AGENT: "
                     Toast.makeText(this.applicationContext, prefix + last.text, Toast.LENGTH_LONG)
@@ -75,9 +75,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        sessionState.listenForStatusChanges { _, status ->
+        sessionState.listen("status") {
             run {
-                Toast.makeText(this.applicationContext, status.name, Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this.applicationContext,
+                    sessionState.status.name,
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
