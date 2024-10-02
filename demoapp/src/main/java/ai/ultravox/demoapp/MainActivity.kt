@@ -16,11 +16,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var joinButton: Button
     private lateinit var joinText: EditText
+    private lateinit var toggleMicButton: Button
+    private lateinit var toggleSpeakerButton: Button
     private lateinit var session: UltravoxSession
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
 
@@ -47,8 +50,14 @@ class MainActivity : AppCompatActivity() {
             }
         joinButton = findViewById(R.id.join_button)
         joinText = findViewById(R.id.join_url_text)
+        toggleMicButton = findViewById(R.id.toggle_mic_button)
+        toggleSpeakerButton = findViewById(R.id.toggle_speaker_button)
+
         session = UltravoxSession(applicationContext, lifecycleScope)
+        
         joinButton.setOnClickListener { onJoinClicked() }
+        toggleMicButton.setOnClickListener { onToggleMicClicked() }
+        toggleSpeakerButton.setOnClickListener { onToggleSpeakerClicked() }
     }
 
     private fun onJoinClicked() {
@@ -80,6 +89,34 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(
                     this.applicationContext,
                     sessionState.status.name,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun onToggleMicClicked() {
+        lifecycleScope.launch {
+            session.toggleMicMuted()
+            val isMuted = session.isMicMuted
+            runOnUiThread {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Mic is now ${if (isMuted) "muted" else "unmuted"}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun onToggleSpeakerClicked() {
+        lifecycleScope.launch {
+            session.toggleSpeakerMuted()
+            val isMuted = session.isSpeakerMuted
+            runOnUiThread {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Speaker is now ${if (isMuted) "muted" else "unmuted"}",
                     Toast.LENGTH_SHORT
                 ).show()
             }

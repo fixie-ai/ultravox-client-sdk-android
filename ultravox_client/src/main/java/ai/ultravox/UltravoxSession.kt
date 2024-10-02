@@ -2,6 +2,9 @@ package ai.ultravox
 
 import android.content.Context
 import io.livekit.android.LiveKit
+import io.livekit.android.room.participant.RemoteParticipant
+import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.TrackPublication
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import io.livekit.android.room.Room
@@ -24,6 +27,35 @@ class UltravoxSession(
     private val state = UltravoxSessionState()
     private var socket: WebSocket? = null
     private var room: Room = LiveKit.create(ctx)
+    private var speakerMuted: Boolean = false
+
+    val isMicMuted: Boolean
+        get() = !room.localParticipant.isMicrophoneEnabled()
+    
+    suspend fun setMicMuted(value: Boolean) {
+        room.localParticipant.setMicrophoneEnabled(!value)
+    }
+
+    suspend fun toggleMicMuted() {
+        setMicMuted(!isMicMuted)
+    }
+
+    val isSpeakerMuted: Boolean
+        get() = speakerMuted
+    
+    suspend fun setSpeakerMuted(value: Boolean) {
+        speakerMuted = value
+
+        room.remoteParticipants.values.forEach { participant: RemoteParticipant ->
+                participant.audioTrackPublications.forEach { (publication, track) ->
+                    track?.enabled = !value
+                }
+            }
+    }
+
+    suspend fun toggleSpeakerMuted() {
+        setSpeakerMuted(!isSpeakerMuted)
+    }
 
     fun joinCall(joinUrl: String): UltravoxSessionState {
         if (state.status != UltravoxSessionStatus.DISCONNECTED) {
@@ -164,5 +196,4 @@ class UltravoxSession(
             room.localParticipant.publishData(message.toString().encodeToByteArray())
         }
     }
-
 }
