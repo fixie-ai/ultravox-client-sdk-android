@@ -3,8 +3,10 @@ package ai.ultravox.demoapp
 import ai.ultravox.Transcript
 import ai.ultravox.UltravoxSession
 import android.Manifest.permission.RECORD_AUDIO
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
@@ -17,9 +19,12 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 
+@SuppressLint("SetTextI18n")
 class MainActivity : AppCompatActivity() {
 
     private lateinit var joinButton: Button
+    private lateinit var muteMicButton: Button
+    private lateinit var muteSpeakerButton: Button
     private lateinit var joinText: EditText
     private lateinit var session: UltravoxSession
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
@@ -46,9 +51,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         joinButton = findViewById(R.id.join_button)
+        muteMicButton = findViewById(R.id.mic_mute_button)
+        muteSpeakerButton = findViewById(R.id.speaker_mute_button)
         joinText = findViewById(R.id.join_url_text)
         session = UltravoxSession(applicationContext, lifecycleScope)
         joinButton.setOnClickListener { onJoinClicked() }
+        muteMicButton.visibility = View.INVISIBLE
+        muteSpeakerButton.visibility = View.INVISIBLE
+        muteMicButton.setOnClickListener { onMicMute() }
+        muteSpeakerButton.setOnClickListener { onSpeakerMute() }
     }
 
     private fun onJoinClicked() {
@@ -60,6 +71,32 @@ class MainActivity : AppCompatActivity() {
             joinCall()
         } else {
             requestPermissionLauncher.launch(RECORD_AUDIO)
+        }
+    }
+
+    private fun onLeaveClicked() {
+        session.leaveCall()
+        joinButton.text = "Join"
+        joinButton.setOnClickListener { onJoinClicked() }
+        muteMicButton.visibility = View.INVISIBLE
+        muteSpeakerButton.visibility = View.INVISIBLE
+    }
+
+    private fun onMicMute() {
+        session.toggleMicMuted()
+        if (muteMicButton.text == "Mute User") {
+            muteMicButton.text = "Unmute User"
+        } else {
+            muteMicButton.text = "Mute User"
+        }
+    }
+
+    private fun onSpeakerMute() {
+        session.toggleSpeakerMuted()
+        if (muteSpeakerButton.text == "Mute Agent") {
+            muteSpeakerButton.text = "Unmute Agent"
+        } else {
+            muteSpeakerButton.text = "Mute Agent"
         }
     }
 
@@ -84,6 +121,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
         session.joinCall(joinText.text.toString())
+        joinButton.text = "Leave"
+        joinButton.setOnClickListener { onLeaveClicked() }
+        muteMicButton.visibility = View.VISIBLE
+        muteSpeakerButton.visibility = View.VISIBLE
     }
 
     override fun onDestroy() {

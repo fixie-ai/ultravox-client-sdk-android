@@ -53,6 +53,42 @@ class UltravoxSession(
             fireListeners("experimental_message")
         }
 
+    var micMuted: Boolean = false
+        set(value) {
+            val prev = field
+            field = value
+            if (prev != value) {
+                coroScope.launch {
+                    room.localParticipant.setMicrophoneEnabled(!value)
+                    fireListeners("mic_muted")
+                }
+            }
+        }
+
+    fun toggleMicMuted() {
+        micMuted = !micMuted
+    }
+
+    var speakerMuted: Boolean = false
+        set(value) {
+            val prev = field
+            field = value
+            if (prev != value) {
+                coroScope.launch {
+                    for (participant in room.remoteParticipants.values) {
+                        for ((_, track) in participant.audioTrackPublications) {
+                            track?.enabled = !value
+                        }
+                    }
+                    fireListeners("speaker_muted")
+                }
+            }
+        }
+
+    fun toggleSpeakerMuted() {
+        speakerMuted = !speakerMuted
+    }
+
     private val listeners = HashMap<String, ArrayList<UltravoxSessionListener>>()
 
     fun listen(event: String, listener: UltravoxSessionListener) {
