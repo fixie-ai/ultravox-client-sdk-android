@@ -64,10 +64,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun joinCall() {
-        val sessionState = session.joinCall(joinText.text.toString())
-        sessionState.listen("transcript") {
+        session.listen("transcript") {
             run {
-                val last = sessionState.lastTranscript
+                val last = session.lastTranscript
                 if (last != null && last.isFinal) {
                     val prefix = if (last.speaker == Transcript.Role.USER) "USER: " else "AGENT: "
                     Toast.makeText(this.applicationContext, prefix + last.text, Toast.LENGTH_LONG)
@@ -75,15 +74,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        sessionState.listen("status") {
+        session.listen("status") {
             run {
                 Toast.makeText(
                     this.applicationContext,
-                    sessionState.status.name,
+                    session.status.name,
                     Toast.LENGTH_SHORT
                 ).show()
             }
         }
+        session.joinCall(joinText.text.toString())
     }
 
     override fun onDestroy() {
