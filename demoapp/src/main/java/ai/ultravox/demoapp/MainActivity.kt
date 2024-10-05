@@ -84,7 +84,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onMicMute() {
         session.toggleMicMuted()
-        if (muteMicButton.text == "Mute User") {
+        if (session.micMuted) {
             muteMicButton.text = "Unmute User"
         } else {
             muteMicButton.text = "Mute User"
@@ -93,7 +93,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onSpeakerMute() {
         session.toggleSpeakerMuted()
-        if (muteSpeakerButton.text == "Mute Agent") {
+        if (session.speakerMuted) {
             muteSpeakerButton.text = "Unmute Agent"
         } else {
             muteSpeakerButton.text = "Mute Agent"
