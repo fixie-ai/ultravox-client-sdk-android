@@ -19,7 +19,18 @@ import org.json.JSONObject
 
 typealias UltravoxSessionListener = () -> Unit
 
-@Suppress("unused")
+/**
+ * Manager for a single session with Ultravox. The session manages state and
+ * emits events (via registered listeners) to notify consumers of state changes.
+ * The following events may be emitted:
+ *
+ *     - "status": Fired when the session status changes.
+ *     - "transcripts": Fired when a transcript is added or updated.
+ *     - "experimental_message": Fired when an experimental message is received. The message is available via lastExperimentalMessage.
+ *     - "mic_muted": Fired when the user's microphone is muted or unmuted.
+ *     - "speaker_muted": Fired when the user's speaker (agent output audio) is muted or unmuted.
+ */
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class UltravoxSession(
     ctx: Context,
     private val coroScope: CoroutineScope,
@@ -31,12 +42,15 @@ class UltravoxSession(
 
     private val _transcripts = ArrayList<Transcript>()
 
+    /** An immutable copy of all the session's transcripts. */
     val transcripts
         get() = _transcripts.toImmutableList()
 
+    /** The most recent transcript for the session. */
     val lastTranscript
         get() = _transcripts.lastOrNull()
 
+    /** The session's current status. */
     var status = UltravoxSessionStatus.DISCONNECTED
         private set(value) {
             val prev = field
@@ -46,13 +60,14 @@ class UltravoxSession(
             }
         }
 
-    @Suppress("MemberVisibilityCanBePrivate")
+    /** The most recently received experimental message. */
     var lastExperimentalMessage: JSONObject? = null
         private set(value) {
             field = value
             fireListeners("experimental_message")
         }
 
+    /** Whether the user's microphone is muted. (This does not inspect hardware state.) */
     var micMuted: Boolean = false
         set(value) {
             val prev = field
@@ -65,10 +80,15 @@ class UltravoxSession(
             }
         }
 
+    /** Toggles the mute state of the user's microphone. See micMuted. */
     fun toggleMicMuted() {
         micMuted = !micMuted
     }
 
+    /**
+     * Whether the user's speaker (that is, output audio from the agent) is muted.
+     * (This does not inspect hardware state or system volume.)
+     */
     var speakerMuted: Boolean = false
         set(value) {
             val prev = field
@@ -85,12 +105,14 @@ class UltravoxSession(
             }
         }
 
+    /** Toggles the mute state of the user's speaker (agent audio output). See speakerMuted. */
     fun toggleSpeakerMuted() {
         speakerMuted = !speakerMuted
     }
 
     private val listeners = HashMap<String, ArrayList<UltravoxSessionListener>>()
 
+    /** Sets up listening for a particular type of event. */
     fun listen(event: String, listener: UltravoxSessionListener) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             listeners.putIfAbsent(event, ArrayList())
@@ -102,6 +124,7 @@ class UltravoxSession(
         listeners[event]!!.add(listener)
     }
 
+    /** Connects to a call using the given joinUrl. */
     fun joinCall(joinUrl: String) {
         if (status != UltravoxSessionStatus.DISCONNECTED) {
             throw RuntimeException("Cannot join a new call while already in a call")
@@ -150,10 +173,12 @@ class UltravoxSession(
         })
     }
 
+    /** Leaves the current call (if any). */
     fun leaveCall() {
         disconnect()
     }
 
+    /** Sends a message via text. */
     fun sendText(text: String) {
         if (!status.live) {
             throw RuntimeException("Cannot send text while not connected. Current status is $status.")
@@ -240,7 +265,7 @@ class UltravoxSession(
             _transcripts.removeLast()
         }
         _transcripts.add(transcript)
-        fireListeners("transcript")
+        fireListeners("transcripts")
     }
 
     private fun sendData(message: JSONObject) {
