@@ -18,6 +18,8 @@ import okhttp3.WebSocketListener
 import org.json.JSONObject
 
 typealias UltravoxSessionListener = () -> Unit
+typealias ClientToolImplementation = (JSONObject) -> ClientToolResult
+typealias AsyncClientToolImplementation = suspend (JSONObject) -> ClientToolResult
 
 /**
  * Manager for a single session with Ultravox. The session manages state and
@@ -108,6 +110,24 @@ class UltravoxSession(
     /** Toggles the mute state of the user's speaker (agent audio output). See speakerMuted. */
     fun toggleSpeakerMuted() {
         speakerMuted = !speakerMuted
+    }
+
+    private val registeredSyncTools = HashMap<String, ClientToolImplementation>()
+    private val registeredAsyncTools = HashMap<String, AsyncClientToolImplementation>()
+
+    /**
+     * Registers a client tool implementation with the given name. If the call is started with a
+     * client-implemented tool, this implementation will be invoked when the model calls the tool.
+     *
+     * See https://docs.ultravox.ai/tools/ for more information.
+     */
+    fun registerToolImplementation(name: String, impl: ClientToolImplementation) {
+        registeredSyncTools[name] = impl
+    }
+
+    /** Override of [registerToolImplementation] for suspendable tool implementations. */
+    fun registerToolImplementation(name: String, impl: AsyncClientToolImplementation) {
+        registeredAsyncTools[name] = impl
     }
 
     private val listeners = HashMap<String, ArrayList<UltravoxSessionListener>>()
@@ -251,6 +271,14 @@ class UltravoxSession(
                 }
             }
 
+            "client_tool_invocation" -> {
+                invokeClientTool(
+                    message["toolName"] as String,
+                    message["invocationId"] as String,
+                    message["parameters"] as JSONObject
+                )
+            }
+
             else -> {
                 if (experimentalMessages.isNotEmpty()) {
                     lastExperimentalMessage = message
@@ -266,6 +294,47 @@ class UltravoxSession(
         }
         _transcripts.add(transcript)
         fireListeners("transcripts")
+    }
+
+    private fun invokeClientTool(toolName: String, invocationId: String, parameters: JSONObject) {
+        val message = JSONObject()
+        message.put("type", "client_tool_result")
+        message.put("invocationId", invocationId)
+        if (registeredSyncTools.containsKey(toolName)) {
+            try {
+                sendToolResult(message, registeredSyncTools[toolName]!!(parameters))
+            } catch (ex: Exception) {
+                sendToolFailure(message, toolName, ex)
+            }
+        } else if (registeredAsyncTools.containsKey(toolName)) {
+            coroScope.launch {
+                try {
+                    sendToolResult(message, registeredAsyncTools[toolName]!!(parameters))
+                } catch (ex: Exception) {
+                    sendToolFailure(message, toolName, ex)
+                }
+            }
+        } else {
+            Log.w("UltravoxClient", "Missing tool implementation for $toolName")
+            message.put("errorType", "undefined")
+            message.put("errorMessage", "Client tool $toolName is not registered (Android client)")
+            sendData(message)
+        }
+    }
+
+    private fun sendToolResult(message: JSONObject, result: ClientToolResult) {
+        message.put("result", result.result)
+        if (result.responseType != null) {
+            message.put("responseType", result.responseType)
+        }
+        sendData(message)
+    }
+
+    private fun sendToolFailure(message: JSONObject, toolName: String, ex: Exception) {
+        Log.w("UltravoxClient", "Error invoking client tool $toolName", ex)
+        message.put("errorType", "implementation-error")
+        message.put("errorMessage", "${ex.message}\n${ex.printStackTrace()}")
+        sendData(message)
     }
 
     private fun sendData(message: JSONObject) {
