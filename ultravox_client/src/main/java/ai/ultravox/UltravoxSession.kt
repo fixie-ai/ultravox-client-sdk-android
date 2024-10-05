@@ -1,10 +1,13 @@
 package ai.ultravox
 
 import android.content.Context
+import android.os.Build
+import android.util.Log
 import io.livekit.android.LiveKit
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import io.livekit.android.room.Room
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -14,22 +17,139 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
 
-@Suppress("unused")
+typealias UltravoxSessionListener = () -> Unit
+typealias ClientToolImplementation = (JSONObject) -> ClientToolResult
+typealias AsyncClientToolImplementation = suspend (JSONObject) -> ClientToolResult
+
+/**
+ * Manager for a single session with Ultravox. The session manages state and
+ * emits events (via registered listeners) to notify consumers of state changes.
+ * The following events may be emitted:
+ *
+ *     - "status": Fired when the session status changes.
+ *     - "transcripts": Fired when a transcript is added or updated.
+ *     - "experimental_message": Fired when an experimental message is received. The message is available via lastExperimentalMessage.
+ *     - "mic_muted": Fired when the user's microphone is muted or unmuted.
+ *     - "speaker_muted": Fired when the user's speaker (agent output audio) is muted or unmuted.
+ */
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class UltravoxSession(
     ctx: Context,
     private val coroScope: CoroutineScope,
     private val client: OkHttpClient = OkHttpClient(),
     private val experimentalMessages: Set<String> = HashSet(),
 ) {
-    private val state = UltravoxSessionState()
     private var socket: WebSocket? = null
     private var room: Room = LiveKit.create(ctx)
 
-    fun joinCall(joinUrl: String): UltravoxSessionState {
-        if (state.status != UltravoxSessionStatus.DISCONNECTED) {
+    private val _transcripts = ArrayList<Transcript>()
+
+    /** An immutable copy of all the session's transcripts. */
+    val transcripts
+        get() = _transcripts.toImmutableList()
+
+    /** The most recent transcript for the session. */
+    val lastTranscript
+        get() = _transcripts.lastOrNull()
+
+    /** The session's current status. */
+    var status = UltravoxSessionStatus.DISCONNECTED
+        private set(value) {
+            val prev = field
+            field = value
+            if (prev != value) {
+                fireListeners("status")
+            }
+        }
+
+    /** The most recently received experimental message. */
+    var lastExperimentalMessage: JSONObject? = null
+        private set(value) {
+            field = value
+            fireListeners("experimental_message")
+        }
+
+    /** Whether the user's microphone is muted. (This does not inspect hardware state.) */
+    var micMuted: Boolean = false
+        set(value) {
+            val prev = field
+            field = value
+            if (prev != value) {
+                coroScope.launch {
+                    room.localParticipant.setMicrophoneEnabled(!value)
+                    fireListeners("mic_muted")
+                }
+            }
+        }
+
+    /** Toggles the mute state of the user's microphone. See micMuted. */
+    fun toggleMicMuted() {
+        micMuted = !micMuted
+    }
+
+    /**
+     * Whether the user's speaker (that is, output audio from the agent) is muted.
+     * (This does not inspect hardware state or system volume.)
+     */
+    var speakerMuted: Boolean = false
+        set(value) {
+            val prev = field
+            field = value
+            if (prev != value) {
+                coroScope.launch {
+                    for (participant in room.remoteParticipants.values) {
+                        for ((_, track) in participant.audioTrackPublications) {
+                            track?.enabled = !value
+                        }
+                    }
+                    fireListeners("speaker_muted")
+                }
+            }
+        }
+
+    /** Toggles the mute state of the user's speaker (agent audio output). See speakerMuted. */
+    fun toggleSpeakerMuted() {
+        speakerMuted = !speakerMuted
+    }
+
+    private val registeredSyncTools = HashMap<String, ClientToolImplementation>()
+    private val registeredAsyncTools = HashMap<String, AsyncClientToolImplementation>()
+
+    /**
+     * Registers a client tool implementation with the given name. If the call is started with a
+     * client-implemented tool, this implementation will be invoked when the model calls the tool.
+     *
+     * See https://docs.ultravox.ai/tools/ for more information.
+     */
+    fun registerToolImplementation(name: String, impl: ClientToolImplementation) {
+        registeredSyncTools[name] = impl
+    }
+
+    /** Override of [registerToolImplementation] for suspendable tool implementations. */
+    fun registerToolImplementation(name: String, impl: AsyncClientToolImplementation) {
+        registeredAsyncTools[name] = impl
+    }
+
+    private val listeners = HashMap<String, ArrayList<UltravoxSessionListener>>()
+
+    /** Sets up listening for a particular type of event. */
+    fun listen(event: String, listener: UltravoxSessionListener) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            listeners.putIfAbsent(event, ArrayList())
+        } else {
+            if (!listeners.containsKey("event")) {
+                listeners[event] = ArrayList()
+            }
+        }
+        listeners[event]!!.add(listener)
+    }
+
+    /** Connects to a call using the given joinUrl. */
+    fun joinCall(joinUrl: String) {
+        if (status != UltravoxSessionStatus.DISCONNECTED) {
             throw RuntimeException("Cannot join a new call while already in a call")
         }
-        state.status = UltravoxSessionStatus.CONNECTING
+        status = UltravoxSessionStatus.CONNECTING
         var httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
             // This is the expected case, but OkHttp expects http(s) protocol even
             // for WebSocket requests for some reason.
@@ -58,7 +178,7 @@ class UltravoxSession(
                         }
                         room.connect(message["roomUrl"] as String, message["token"] as String)
                         room.localParticipant.setMicrophoneEnabled(true)
-                        state.status = UltravoxSessionStatus.IDLE
+                        status = UltravoxSessionStatus.IDLE
                     }
                 }
             }
@@ -71,17 +191,17 @@ class UltravoxSession(
                 disconnect()
             }
         })
-
-        return state
     }
 
+    /** Leaves the current call (if any). */
     fun leaveCall() {
         disconnect()
     }
 
+    /** Sends a message via text. */
     fun sendText(text: String) {
-        if (!state.status.live) {
-            throw RuntimeException("Cannot send text while not connected. Current status is " + state.status + ".")
+        if (!status.live) {
+            throw RuntimeException("Cannot send text while not connected. Current status is $status.")
         }
         val message = JSONObject()
         message.put("type", "input_text_message")
@@ -90,13 +210,13 @@ class UltravoxSession(
     }
 
     private fun disconnect() {
-        if (state.status == UltravoxSessionStatus.DISCONNECTED) {
+        if (status == UltravoxSessionStatus.DISCONNECTED) {
             return
         }
-        state.status = UltravoxSessionStatus.DISCONNECTING
+        status = UltravoxSessionStatus.DISCONNECTING
         room.disconnect()
         socket?.cancel()
-        state.status = UltravoxSessionStatus.DISCONNECTED
+        status = UltravoxSessionStatus.DISCONNECTED
     }
 
     private fun onDataReceived(event: RoomEvent.DataReceived) {
@@ -104,9 +224,9 @@ class UltravoxSession(
         when (message["type"]) {
             "state" -> {
                 when (message["state"]) {
-                    "listening" -> state.status = UltravoxSessionStatus.LISTENING
-                    "thinking" -> state.status = UltravoxSessionStatus.THINKING
-                    "speaking" -> state.status = UltravoxSessionStatus.SPEAKING
+                    "listening" -> status = UltravoxSessionStatus.LISTENING
+                    "thinking" -> status = UltravoxSessionStatus.THINKING
+                    "speaking" -> status = UltravoxSessionStatus.SPEAKING
                 }
             }
 
@@ -114,7 +234,7 @@ class UltravoxSession(
                 val transcript = message["transcript"] as JSONObject
                 val medium =
                     if (transcript.has("medium") && transcript["medium"] == "text") Transcript.Medium.TEXT else Transcript.Medium.VOICE
-                state.addOrUpdateTranscript(
+                addOrUpdateTranscript(
                     Transcript(
                         transcript["text"] as String,
                         transcript["final"] as Boolean,
@@ -128,7 +248,7 @@ class UltravoxSession(
                 val medium =
                     if (message["type"] == "agent_text_transcript") Transcript.Medium.TEXT else Transcript.Medium.VOICE
                 if (message.has("text") && message["text"] != JSONObject.NULL) {
-                    state.addOrUpdateTranscript(
+                    addOrUpdateTranscript(
                         Transcript(
                             message["text"] as String,
                             message["final"] as Boolean,
@@ -137,9 +257,9 @@ class UltravoxSession(
                         )
                     )
                 } else if (message.has("delta") && message["delta"] != JSONObject.NULL) {
-                    val last = state.lastTranscript
+                    val last = lastTranscript
                     if (last != null && last.speaker == Transcript.Role.AGENT) {
-                        state.addOrUpdateTranscript(
+                        addOrUpdateTranscript(
                             Transcript(
                                 last.text + message["delta"] as String,
                                 message["final"] as Boolean,
@@ -151,12 +271,70 @@ class UltravoxSession(
                 }
             }
 
+            "client_tool_invocation" -> {
+                invokeClientTool(
+                    message["toolName"] as String,
+                    message["invocationId"] as String,
+                    message["parameters"] as JSONObject
+                )
+            }
+
             else -> {
                 if (experimentalMessages.isNotEmpty()) {
-                    state.lastExperimentalMessage = message
+                    lastExperimentalMessage = message
                 }
             }
         }
+    }
+
+    private fun addOrUpdateTranscript(transcript: Transcript) {
+        val last = lastTranscript
+        if (last != null && !last.isFinal && last.speaker == transcript.speaker) {
+            _transcripts.removeLast()
+        }
+        _transcripts.add(transcript)
+        fireListeners("transcripts")
+    }
+
+    private fun invokeClientTool(toolName: String, invocationId: String, parameters: JSONObject) {
+        val message = JSONObject()
+        message.put("type", "client_tool_result")
+        message.put("invocationId", invocationId)
+        if (registeredSyncTools.containsKey(toolName)) {
+            try {
+                sendToolResult(message, registeredSyncTools[toolName]!!(parameters))
+            } catch (ex: Exception) {
+                sendToolFailure(message, toolName, ex)
+            }
+        } else if (registeredAsyncTools.containsKey(toolName)) {
+            coroScope.launch {
+                try {
+                    sendToolResult(message, registeredAsyncTools[toolName]!!(parameters))
+                } catch (ex: Exception) {
+                    sendToolFailure(message, toolName, ex)
+                }
+            }
+        } else {
+            Log.w("UltravoxClient", "Missing tool implementation for $toolName")
+            message.put("errorType", "undefined")
+            message.put("errorMessage", "Client tool $toolName is not registered (Android client)")
+            sendData(message)
+        }
+    }
+
+    private fun sendToolResult(message: JSONObject, result: ClientToolResult) {
+        message.put("result", result.result)
+        if (result.responseType != null) {
+            message.put("responseType", result.responseType)
+        }
+        sendData(message)
+    }
+
+    private fun sendToolFailure(message: JSONObject, toolName: String, ex: Exception) {
+        Log.w("UltravoxClient", "Error invoking client tool $toolName", ex)
+        message.put("errorType", "implementation-error")
+        message.put("errorMessage", "${ex.message}\n${ex.printStackTrace()}")
+        sendData(message)
     }
 
     private fun sendData(message: JSONObject) {
@@ -165,4 +343,16 @@ class UltravoxSession(
         }
     }
 
+    private fun fireListeners(event: String) {
+        if (!listeners.containsKey(event)) {
+            return
+        }
+        for (listener in listeners[event]!!) {
+            try {
+                listener()
+            } catch (e: Exception) {
+                Log.w("UltravoxClient", "Listener error: ", e)
+            }
+        }
+    }
 }
