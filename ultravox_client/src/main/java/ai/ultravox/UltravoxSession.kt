@@ -198,6 +198,20 @@ class UltravoxSession(
         disconnect()
     }
 
+    /**
+     * Sets the agent's output medium. If the agent is currently speaking, this will take effect at
+     * the end of the agent's utterance. Also see [speakerMuted].
+     */
+    fun setOutputMedium(medium: Transcript.Medium) {
+        if (!status.live) {
+            throw RuntimeException("Cannot set output medium while not connected. Current status is $status.")
+        }
+        val message = JSONObject()
+        message.put("type", "set_output_medium")
+        message.put("medium", medium.name.lowercase())
+        sendData(message)
+    }
+
     /** Sends a message via text. */
     fun sendText(text: String) {
         if (!status.live) {
