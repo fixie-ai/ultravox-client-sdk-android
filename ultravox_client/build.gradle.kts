@@ -49,7 +49,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "ai.fixie"
             artifactId = "ultravox-client-sdk"
-            version = "0.1.2"
+            version = "0.1.4"
 
             pom {
                 name = "Ultravox Client"
