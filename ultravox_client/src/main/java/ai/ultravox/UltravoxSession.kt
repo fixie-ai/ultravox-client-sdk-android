@@ -281,9 +281,9 @@ class UltravoxSession(
     private fun onDataReceived(event: RoomEvent.DataReceived) {
         val message = JSONObject(event.data.decodeToString())
         lastDataMessage = message
-        when (message["type"]) {
+        when (message.getString("type")) {
             "state" -> {
-                when (message["state"]) {
+                when (message.optString("state")) {
                     "listening" -> status = UltravoxSessionStatus.LISTENING
                     "thinking" -> status = UltravoxSessionStatus.THINKING
                     "speaking" -> status = UltravoxSessionStatus.SPEAKING
@@ -292,37 +292,39 @@ class UltravoxSession(
 
             "transcript" -> {
                 val medium =
-                    if (message["medium"] == "voice")
+                    if (message.optString("medium") == "voice")
                         Transcript.Medium.VOICE
                     else Transcript.Medium.TEXT
                 val role =
-                    if (message["role"] == "agent") Transcript.Role.AGENT else Transcript.Role.USER
-                val ordinal = message["ordinal"] as Int
-                val isFinal = if (message.has("final")) message["final"] as Boolean else false
-                if (message.has("text")) {
+                    if (message.optString("role") == "agent")
+                        Transcript.Role.AGENT
+                    else Transcript.Role.USER
+                val ordinal = message.getInt("ordinal")
+                val isFinal = message.optBoolean("final", false)
+                if (!message.isNull("text")) {
                     addOrUpdateTranscript(
                         ordinal,
                         medium,
                         role,
                         isFinal,
-                        text = message["text"] as String
+                        text = message.getString("text")
                     )
-                } else if (message.has("delta")) {
+                } else if (!message.isNull("delta")) {
                     addOrUpdateTranscript(
                         ordinal,
                         medium,
                         role,
                         isFinal,
-                        delta = message["delta"] as String
+                        delta = message.getString("delta")
                     )
                 }
             }
 
             "client_tool_invocation" -> {
                 invokeClientTool(
-                    message["toolName"] as String,
-                    message["invocationId"] as String,
-                    message["parameters"] as JSONObject
+                    message.getString("toolName"),
+                    message.getString("invocationId"),
+                    message.getJSONObject("parameters")
                 )
             }
 
