@@ -28,9 +28,13 @@ typealias AsyncClientToolImplementation = suspend (JSONObject) -> ClientToolResu
  *
  *     - "status": Fired when the session status changes.
  *     - "transcripts": Fired when a transcript is added or updated.
- *     - "experimental_message": Fired when an experimental message is received. The message is available via lastExperimentalMessage.
+ *     - "experimental_message": Fired when an experimental message is received. The message is
+ *         available via lastExperimentalMessage.
  *     - "mic_muted": Fired when the user's microphone is muted or unmuted.
  *     - "speaker_muted": Fired when the user's speaker (agent output audio) is muted or unmuted.
+ *     - "data_message": Fired when any data message is received, including those typically handled
+ *         by this SDK. The message is available via lastDataMessage. See
+ *         https://docs.ultravox.ai/datamessages for message types.
  */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class UltravoxSession(
@@ -39,14 +43,18 @@ class UltravoxSession(
     private val client: OkHttpClient = OkHttpClient(),
     private val experimentalMessages: Set<String> = HashSet(),
 ) {
+    companion object {
+        const val ULTRAVOX_SDK_VERSION = "0.1.5"
+    }
+
     private var socket: WebSocket? = null
     private var room: Room = LiveKit.create(ctx)
 
-    private val _transcripts = ArrayList<Transcript>()
+    private val _transcripts = ArrayList<Transcript?>()
 
     /** An immutable copy of all the session's transcripts. */
     val transcripts
-        get() = _transcripts.toImmutableList()
+        get() = _transcripts.filterNotNull().toImmutableList()
 
     /** The most recent transcript for the session. */
     val lastTranscript
@@ -67,6 +75,13 @@ class UltravoxSession(
         private set(value) {
             field = value
             fireListeners("experimental_message")
+        }
+
+    /** The most recently received data message. */
+    var lastDataMessage: JSONObject? = null
+        private set(value) {
+            field = value
+            fireListeners("data_message")
         }
 
     /** Whether the user's microphone is muted. (This does not inspect hardware state.) */
@@ -145,24 +160,37 @@ class UltravoxSession(
     }
 
     /** Connects to a call using the given joinUrl. */
-    fun joinCall(joinUrl: String) {
+    fun joinCall(
+        joinUrl: String,
+        @Suppress("FORBIDDEN_VARARG_PARAMETER_TYPE", "UNUSED_PARAMETER")
+        vararg forceNamedParams: Nothing,
+        clientVersion: String? = null
+    ) {
         if (status != UltravoxSessionStatus.DISCONNECTED) {
             throw RuntimeException("Cannot join a new call while already in a call")
         }
         status = UltravoxSessionStatus.CONNECTING
-        var httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
+        val httpUrl = if (joinUrl.startsWith("wss://") or joinUrl.startsWith("ws://")) {
             // This is the expected case, but OkHttp expects http(s) protocol even
             // for WebSocket requests for some reason.
             joinUrl.replaceFirst("ws", "http").toHttpUrl()
         } else {
             joinUrl.toHttpUrl()
         }
-        if (experimentalMessages.isNotEmpty()) {
-            httpUrl = httpUrl.newBuilder()
-                .addQueryParameter("experimentalMessages", experimentalMessages.joinToString(","))
-                .build()
+        val urlBuilder = httpUrl.newBuilder()
+        var uvClientVersion = "android_$ULTRAVOX_SDK_VERSION"
+        if (clientVersion != null) {
+            uvClientVersion += ":$clientVersion"
         }
-        val req = Request.Builder().url(httpUrl).build()
+        urlBuilder.addQueryParameter("clientVersion", uvClientVersion)
+        urlBuilder.addQueryParameter("apiVersion", "1")
+        if (experimentalMessages.isNotEmpty()) {
+            urlBuilder.addQueryParameter(
+                "experimentalMessages",
+                experimentalMessages.joinToString(",")
+            )
+        }
+        val req = Request.Builder().url(urlBuilder.build()).build()
         socket = client.newWebSocket(req, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val message = JSONObject(text)
@@ -223,6 +251,16 @@ class UltravoxSession(
         sendData(message)
     }
 
+    /** Sends an arbitrary data message to the server. See https://docs.ultravox.ai/datamessages for message types. */
+    fun sendData(message: JSONObject) {
+        if (!message.has("type")) {
+            throw RuntimeException("Cannot send a data message without a type.")
+        }
+        coroScope.launch {
+            room.localParticipant.publishData(message.toString().encodeToByteArray())
+        }
+    }
+
     private fun disconnect() {
         if (status == UltravoxSessionStatus.DISCONNECTED) {
             return
@@ -235,6 +273,7 @@ class UltravoxSession(
 
     private fun onDataReceived(event: RoomEvent.DataReceived) {
         val message = JSONObject(event.data.decodeToString())
+        lastDataMessage = message
         when (message["type"]) {
             "state" -> {
                 when (message["state"]) {
@@ -245,43 +284,28 @@ class UltravoxSession(
             }
 
             "transcript" -> {
-                val transcript = message["transcript"] as JSONObject
                 val medium =
-                    if (transcript.has("medium") && transcript["medium"] == "text") Transcript.Medium.TEXT else Transcript.Medium.VOICE
-                addOrUpdateTranscript(
-                    Transcript(
-                        transcript["text"] as String,
-                        transcript["final"] as Boolean,
-                        Transcript.Role.USER,
-                        medium
-                    )
-                )
-            }
-
-            "voice_synced_transcript", "agent_text_transcript" -> {
-                val medium =
-                    if (message["type"] == "agent_text_transcript") Transcript.Medium.TEXT else Transcript.Medium.VOICE
-                if (message.has("text") && message["text"] != JSONObject.NULL) {
+                    if (message["medium"] == "voice") Transcript.Medium.VOICE else Transcript.Medium.TEXT
+                val role =
+                    if (message["role"] == "agent") Transcript.Role.AGENT else Transcript.Role.USER
+                val ordinal = message["ordinal"] as Int
+                val isFinal = if (message.has("final")) message["final"] as Boolean else false
+                if (message.has("text")) {
                     addOrUpdateTranscript(
-                        Transcript(
-                            message["text"] as String,
-                            message["final"] as Boolean,
-                            Transcript.Role.AGENT,
-                            medium
-                        )
+                        ordinal,
+                        medium,
+                        role,
+                        isFinal,
+                        text = message["text"] as String
                     )
-                } else if (message.has("delta") && message["delta"] != JSONObject.NULL) {
-                    val last = lastTranscript
-                    if (last != null && last.speaker == Transcript.Role.AGENT) {
-                        addOrUpdateTranscript(
-                            Transcript(
-                                last.text + message["delta"] as String,
-                                message["final"] as Boolean,
-                                Transcript.Role.AGENT,
-                                medium
-                            )
-                        )
-                    }
+                } else if (message.has("delta")) {
+                    addOrUpdateTranscript(
+                        ordinal,
+                        medium,
+                        role,
+                        isFinal,
+                        delta = message["delta"] as String
+                    )
                 }
             }
 
@@ -301,12 +325,24 @@ class UltravoxSession(
         }
     }
 
-    private fun addOrUpdateTranscript(transcript: Transcript) {
-        val last = lastTranscript
-        if (last != null && !last.isFinal && last.speaker == transcript.speaker) {
-            _transcripts.removeLast()
+    private fun addOrUpdateTranscript(
+        ordinal: Int,
+        medium: Transcript.Medium,
+        speaker: Transcript.Role,
+        isFinal: Boolean,
+        text: String? = null,
+        delta: String? = null
+    ) {
+        while (_transcripts.size < ordinal) {
+            _transcripts.add(null)
         }
-        _transcripts.add(transcript)
+        if (_transcripts.size == ordinal) {
+            _transcripts.add(Transcript(text ?: delta ?: "", isFinal, speaker, medium))
+        } else {
+            val priorText = _transcripts[ordinal]?.text ?: ""
+            _transcripts[ordinal] =
+                Transcript(text ?: (priorText + (delta ?: "")), isFinal, speaker, medium)
+        }
         fireListeners("transcripts")
     }
 
@@ -349,12 +385,6 @@ class UltravoxSession(
         message.put("errorType", "implementation-error")
         message.put("errorMessage", "${ex.message}\n${ex.printStackTrace()}")
         sendData(message)
-    }
-
-    private fun sendData(message: JSONObject) {
-        coroScope.launch {
-            room.localParticipant.publishData(message.toString().encodeToByteArray())
-        }
     }
 
     private fun fireListeners(event: String) {
