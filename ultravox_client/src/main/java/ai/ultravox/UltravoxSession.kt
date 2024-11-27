@@ -232,7 +232,9 @@ class UltravoxSession(
      */
     fun setOutputMedium(medium: Transcript.Medium) {
         if (!status.live) {
-            throw RuntimeException("Cannot set output medium while not connected. Current status is $status.")
+            throw RuntimeException(
+                "Cannot set output medium while not connected. Current status is $status."
+            )
         }
         val message = JSONObject()
         message.put("type", "set_output_medium")
@@ -243,7 +245,9 @@ class UltravoxSession(
     /** Sends a message via text. */
     fun sendText(text: String) {
         if (!status.live) {
-            throw RuntimeException("Cannot send text while not connected. Current status is $status.")
+            throw RuntimeException(
+                "Cannot send text while not connected. Current status is $status."
+            )
         }
         val message = JSONObject()
         message.put("type", "input_text_message")
@@ -251,7 +255,10 @@ class UltravoxSession(
         sendData(message)
     }
 
-    /** Sends an arbitrary data message to the server. See https://docs.ultravox.ai/datamessages for message types. */
+    /** Sends an arbitrary data message to the server.
+     *
+     * See https://docs.ultravox.ai/datamessages for message types.
+     */
     fun sendData(message: JSONObject) {
         if (!message.has("type")) {
             throw RuntimeException("Cannot send a data message without a type.")
@@ -285,7 +292,9 @@ class UltravoxSession(
 
             "transcript" -> {
                 val medium =
-                    if (message["medium"] == "voice") Transcript.Medium.VOICE else Transcript.Medium.TEXT
+                    if (message["medium"] == "voice")
+                        Transcript.Medium.VOICE
+                    else Transcript.Medium.TEXT
                 val role =
                     if (message["role"] == "agent") Transcript.Role.AGENT else Transcript.Role.USER
                 val ordinal = message["ordinal"] as Int

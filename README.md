@@ -29,3 +29,4 @@ integrate your server with the [Ultravox REST API](https://fixie-ai.github.io/ul
 5. Run publishToMaven (from within AndroidStudio)
 6. Compress the output "ai" directory into a zip file
 7. Upload that zip to https://central.sonatype.com/publishing and work through the UI to publish
+8. Create a new tag/release in GitHub please!
