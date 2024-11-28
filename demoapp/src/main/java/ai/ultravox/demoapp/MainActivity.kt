@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun joinCall() {
-        session.listen("transcript") {
+        session.listen("transcripts") {
             run {
                 val last = session.lastTranscript
                 if (last != null && last.isFinal) {
@@ -109,15 +109,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this.applicationContext, prefix + last.text, Toast.LENGTH_LONG)
                         .show()
                 }
-            }
-        }
-        session.listen("status") {
-            run {
-                Toast.makeText(
-                    this.applicationContext,
-                    session.status.name,
-                    Toast.LENGTH_SHORT
-                ).show()
             }
         }
         session.joinCall(joinText.text.toString())
