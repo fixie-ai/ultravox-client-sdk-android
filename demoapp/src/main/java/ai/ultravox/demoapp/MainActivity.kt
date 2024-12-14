@@ -1,5 +1,6 @@
 package ai.ultravox.demoapp
 
+import ai.ultravox.ClientToolResult
 import ai.ultravox.Transcript
 import ai.ultravox.UltravoxSession
 import android.Manifest.permission.RECORD_AUDIO
@@ -18,6 +19,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import org.json.JSONObject
+import java.time.LocalDate
 
 @SuppressLint("SetTextI18n")
 class MainActivity : AppCompatActivity() {
@@ -111,11 +114,29 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        session.registerToolImplementation("getSecretMenu") { args: JSONObject ->
+            getSecretMenu(args)
+        }
         session.joinCall(joinText.text.toString())
         joinButton.text = "Leave"
         joinButton.setOnClickListener { onLeaveClicked() }
         muteMicButton.visibility = View.VISIBLE
         muteSpeakerButton.visibility = View.VISIBLE
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun getSecretMenu(args: JSONObject): ClientToolResult {
+        val result = JSONObject()
+        result.put("date", LocalDate.now().toString())
+        val items = ArrayList<JSONObject>()
+        items.add(JSONObject())
+        items[0].put("name", "Banana smoothie")
+        items[0].put("price", 3.99)
+        items.add(JSONObject())
+        items[1].put("name", "Butter pecan ice cream (one scoop)")
+        items[1].put("price", 1.99)
+        result.put("specialItems", items)
+        return ClientToolResult(result.toString(), null)
     }
 
     override fun onDestroy() {

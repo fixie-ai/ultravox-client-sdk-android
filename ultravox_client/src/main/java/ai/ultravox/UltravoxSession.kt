@@ -44,7 +44,7 @@ class UltravoxSession(
     private val experimentalMessages: Set<String> = HashSet(),
 ) {
     companion object {
-        const val ULTRAVOX_SDK_VERSION = "0.1.5"
+        const val ULTRAVOX_SDK_VERSION = "0.1.6"
     }
 
     private var socket: WebSocket? = null
@@ -140,8 +140,8 @@ class UltravoxSession(
         registeredSyncTools[name] = impl
     }
 
-    /** Override of [registerToolImplementation] for suspendable tool implementations. */
-    fun registerToolImplementation(name: String, impl: AsyncClientToolImplementation) {
+    /** Same as [registerToolImplementation], but for suspendable tool implementations. */
+    fun registerAsyncToolImplementation(name: String, impl: AsyncClientToolImplementation) {
         registeredAsyncTools[name] = impl
     }
 
@@ -263,8 +263,14 @@ class UltravoxSession(
         if (!message.has("type")) {
             throw RuntimeException("Cannot send a data message without a type.")
         }
-        coroScope.launch {
-            room.localParticipant.publishData(message.toString().encodeToByteArray())
+        val messageStr = message.toString()
+        val messageBytes = messageStr.encodeToByteArray()
+        if (messageBytes.size > 1024) {
+            socket?.send(messageStr)
+        } else {
+            coroScope.launch {
+                room.localParticipant.publishData(messageBytes)
+            }
         }
     }
 
